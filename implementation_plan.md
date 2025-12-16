@@ -15,14 +15,14 @@
     - [ ] Enforce team limits (optional but good).
 
 ## Phase 2: Single Player Tetris Core (Milestone 2 & 3)
-- [ ] **Tetris Logic (Pure Function)**
-    - [ ] Create `libs/tetris.ts` with pure game logic (grid, pieces, rotation, collision).
-    - [ ] Implement `moveLeft`, `moveRight`, `rotate`, `drop`, `hardDrop`.
-    - [ ] Implement `tick` function for gravity.
-- [ ] **Tetris UI Component**
-    - [ ] Create `<TetrisBoard />` using HTML Canvas or CSS Grid.
-    - [ ] Implement keyboard controls hook.
-    - [ ] Create `/tetris-solo` page to test game loop locally (no backend).
+- [x] **Tetris Logic (Pure Function)**
+    - [x] Create `libs/tetris.ts` with pure game logic (grid, pieces, rotation, collision).
+    - [x] Implement `moveLeft`, `moveRight`, `rotate`, `drop`, `hardDrop`.
+    - [x] Implement `tick` function for gravity.
+- [x] **Tetris UI Component**
+    - [x] Create `<TetrisBoard />` using HTML Canvas or CSS Grid.
+    - [x] Implement keyboard controls hook.
+    - [x] Create `/tetris-solo` page to test game loop locally (no backend).
 
 ## Phase 3: Multiplayer Synchronization (Milestone 4)
 - [ ] **Backend Game State**

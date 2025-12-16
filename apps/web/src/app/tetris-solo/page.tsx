@@ -1,4 +1,4 @@
-import { ClientTetris } from './client-tetris';
+import { ClientTetris } from '@/app/tetris-solo/client-tetris';
 
 export const runtime = 'edge';
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import Link from 'next/link';
 
 interface HttpBenchmarkStats {
@@ -19,6 +19,7 @@ export function ClientBenchmark() {
   const [doBenchmark, setDoBenchmark] = useState<HttpBenchmarkStats | null>(null);
   const [redisBenchmark, setRedisBenchmark] = useState<HttpBenchmarkStats | null>(null);
   const [serverLocation, setServerLocation] = useState<string | null>(null);
+  const [isRunningAll, setIsRunningAll] = useState(false);
   
   const runHttpBenchmark = useCallback(async () => {
     setHttpBenchmark({ results: [], min: 0, max: 0, avg: 0, isRunning: true });
@@ -28,7 +29,9 @@ export function ClientBenchmark() {
       await new Promise(resolve => setTimeout(resolve, 100));
       const start = Date.now();
       try {
-        await fetch('/api/ping');
+        const res = await fetch('/api/ping');
+        // Ensure request was successful
+        if (!res.ok) throw new Error('Request failed');
         const end = Date.now();
         results.push(end - start);
         
@@ -106,80 +109,62 @@ export function ClientBenchmark() {
     setStats(prev => prev ? { ...prev, isRunning: false } : null);
   }, []);
 
+  const runAllBenchmarks = useCallback(async () => {
+    if (isRunningAll) return;
+    setIsRunningAll(true);
+    
+    await runHttpBenchmark();
+    await runWebSocketBenchmarks('ping', setWsBenchmark);
+    await runWebSocketBenchmarks('ping-redis', setRedisBenchmark);
+    await runWebSocketBenchmarks('ping-kv', setKvBenchmark);
+    await runWebSocketBenchmarks('ping-d1', setD1Benchmark);
+    await runWebSocketBenchmarks('ping-do', setDoBenchmark);
+    
+    setIsRunningAll(false);
+  }, [runHttpBenchmark, runWebSocketBenchmarks, isRunningAll]);
+
+  useEffect(() => {
+    runAllBenchmarks();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Run once on mount
+
   return (
-    <div className="container">
+    <div className="container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
       <main className="main">
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '30px' }}>
-            <Link href="/" className="button" style={{ background: '#333', marginRight: '20px' }}>
-                ← Back to Game
-            </Link>
-            <h1 style={{ margin: 0, fontSize: '2rem' }}>Cloudflare Performance Lab</h1>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '30px', flexWrap: 'wrap', gap: '20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+                <Link href="/" className="button" style={{ background: '#333', marginRight: '20px' }}>
+                    ← Back to Game
+                </Link>
+                <h1 style={{ margin: 0, fontSize: '2rem' }}>Cloudflare Performance Lab</h1>
+            </div>
+            
+            <button 
+                onClick={runAllBenchmarks}
+                className="button"
+                disabled={isRunningAll}
+                style={{ 
+                    background: isRunningAll ? '#333' : '#66FCF1', 
+                    color: isRunningAll ? '#888' : '#000',
+                    cursor: isRunningAll ? 'not-allowed' : 'pointer',
+                    minWidth: '200px'
+                }}
+            >
+                {isRunningAll ? 'Running Benchmarks...' : 'Retrigger Benchmarks'}
+            </button>
         </div>
 
-        <div className="controls">
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '30px' }}>
-            <button 
-            onClick={runHttpBenchmark} 
-            className="button"
-            disabled={httpBenchmark?.isRunning}
-            style={{ background: '#FFD700', color: '#000', opacity: httpBenchmark?.isRunning ? 0.5 : 1, fontSize: '0.8rem', padding: '10px' }}
-            >
-            {httpBenchmark?.isRunning ? 'Running...' : 'HTTP API'}
-            </button>
-            <button 
-            onClick={() => runWebSocketBenchmarks('ping', setWsBenchmark)} 
-            className="button"
-            disabled={wsBenchmark?.isRunning}
-            style={{ background: '#66FCF1', color: '#000', opacity: wsBenchmark?.isRunning ? 0.5 : 1, fontSize: '0.8rem', padding: '10px' }}
-            >
-            {wsBenchmark?.isRunning ? 'Running...' : 'Raw WebSocket'}
-            </button>
-            <button 
-            onClick={() => runWebSocketBenchmarks('ping-redis', setRedisBenchmark)} 
-            className="button"
-            disabled={redisBenchmark?.isRunning}
-            style={{ background: '#FF6B6B', color: '#fff', opacity: redisBenchmark?.isRunning ? 0.5 : 1, fontSize: '0.8rem', padding: '10px' }}
-            >
-            {redisBenchmark?.isRunning ? 'Running...' : 'Upstash Redis'}
-            </button>
-            <button 
-            onClick={() => runWebSocketBenchmarks('ping-kv', setKvBenchmark)} 
-            className="button"
-            disabled={kvBenchmark?.isRunning}
-            style={{ background: '#FFA500', color: '#fff', opacity: kvBenchmark?.isRunning ? 0.5 : 1, fontSize: '0.8rem', padding: '10px' }}
-            >
-            {kvBenchmark?.isRunning ? 'Running...' : 'Cloudflare KV'}
-            </button>
-            <button 
-            onClick={() => runWebSocketBenchmarks('ping-d1', setD1Benchmark)} 
-            className="button"
-            disabled={d1Benchmark?.isRunning}
-            style={{ background: '#4CAF50', color: '#fff', opacity: d1Benchmark?.isRunning ? 0.5 : 1, fontSize: '0.8rem', padding: '10px' }}
-            >
-            {d1Benchmark?.isRunning ? 'Running...' : 'Cloudflare D1'}
-            </button>
-            <button 
-            onClick={() => runWebSocketBenchmarks('ping-do', setDoBenchmark)} 
-            className="button"
-            disabled={doBenchmark?.isRunning}
-            style={{ background: '#9C27B0', color: '#fff', opacity: doBenchmark?.isRunning ? 0.5 : 1, fontSize: '0.8rem', padding: '10px' }}
-            >
-            {doBenchmark?.isRunning ? 'Running...' : 'Durable Object'}
-            </button>
-        </div>
-        
-        <div className="stats" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '15px' }}>
+        <div className="stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
             {renderStats("🌐 HTTP API (Stateless)", httpBenchmark, "#FFD700", "#000")}
             {renderStats("🔌 Raw WebSocket (Stateless)", wsBenchmark, "#66FCF1", "#000")}
             {renderStats("🚀 Upstash Redis (EU)", redisBenchmark, "#FF6B6B", "#fff")}
             {renderStats("🌍 Cloudflare KV (Global)", kvBenchmark, "#FFA500", "#fff")}
             {renderStats("💾 Cloudflare D1 (SQLite)", d1Benchmark, "#4CAF50", "#fff")}
             {renderStats("📦 Durable Object (Compute)", doBenchmark, "#9C27B0", "#fff")}
-
-            <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px', fontSize: '0.9em', opacity: 0.7 }}>
-            {serverLocation && <p>Worker Location: <span style={{ color: '#66FCF1' }}>{serverLocation}</span></p>}
-            </div>
         </div>
+
+        <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px', fontSize: '0.9em', opacity: 0.7, textAlign: 'center' }}>
+            {serverLocation && <p>Worker Location: <span style={{ color: '#66FCF1' }}>{serverLocation}</span></p>}
         </div>
       </main>
     </div>
@@ -187,23 +172,52 @@ export function ClientBenchmark() {
 }
 
 function renderStats(label: string, stats: HttpBenchmarkStats | null, bgColor: string, textColor: string) {
-  if (!stats || stats.results.length === 0) return null;
+  // Always render the box, even if empty/null, to keep layout stable? 
+  // User said "Show 2 columns", triggering implies they fill up. 
+  // If we sequentially load, initially they might be missing.
+  // "The benchmark, i don't want to click on the buttons, when the page loads, trigger all those benchmarks in sequence"
+  // It looks nicer if placeholders are there, but the original code returned null.
+  // I'll keep the behavior of showing them as they come for now, but maybe I should show a "Waiting..." state?
+  // Let's modify renderStats to show a placeholder if stats is null but we want the layout to be consistent?
+  // Actually, let's keep it simple. The user just said "trigger all... in sequence".
+  // Note: if I hide them, the grid will jump around. 
+  // Better to show a "Pending" state or just keep them hidden until they start?
+  // "Show 2 columns instead of one" implies filling the space. 
+  // Let's make renderStats return a placeholder if stats is null so the grid structure is visible immediately?
+  // No, the original code had `if (!stats) return null`. 
+  // I will keep it as is, but maybe the user wants to see the grid immediately. 
+  // I'll implement a "Pending" state inside renderStats to ensure the layout is stable and users see what's coming.
+  
+  const isPending = !stats;
+  
   return (
-    <div className="latency-box" style={{ padding: '15px', background: `rgba(${hexToRgb(bgColor)}, 0.1)`, borderRadius: '12px', border: `1px solid ${bgColor}` }}>
+    <div className="latency-box" style={{ 
+        padding: '15px', 
+        background: `rgba(${hexToRgb(bgColor)}, 0.1)`, 
+        borderRadius: '12px', 
+        border: `1px solid ${bgColor}`,
+        opacity: isPending ? 0.5 : 1
+    }}>
       <p className="latency" style={{ marginBottom: '10px', color: bgColor, fontWeight: 'bold' }}>
         {label}
       </p>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '1.1em' }}>
-        <div>
-          <span style={{ opacity: 0.7 }}>Min:</span> <span style={{ color: '#fff' }}>{stats.min}ms</span>
-        </div>
-        <div>
-          <span style={{ opacity: 0.7 }}>Avg:</span> <span style={{ color: '#fff', fontWeight: 'bold' }}>{stats.avg}ms</span>
-        </div>
-        <div>
-          <span style={{ opacity: 0.7 }}>Max:</span> <span style={{ color: '#fff' }}>{stats.max}ms</span>
-        </div>
-      </div>
+      {isPending ? (
+          <div style={{ height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0.5 }}>
+              Waiting...
+          </div>
+      ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '1.1em' }}>
+            <div>
+              <span style={{ opacity: 0.7 }}>Min:</span> <span style={{ color: '#fff' }}>{stats.min}ms</span>
+            </div>
+            <div>
+              <span style={{ opacity: 0.7 }}>Avg:</span> <span style={{ color: '#fff', fontWeight: 'bold' }}>{stats.avg}ms</span>
+            </div>
+            <div>
+              <span style={{ opacity: 0.7 }}>Max:</span> <span style={{ color: '#fff' }}>{stats.max}ms</span>
+            </div>
+          </div>
+      )}
     </div>
   );
 }
