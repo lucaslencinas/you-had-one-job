@@ -129,6 +129,60 @@ export default function ClientPage({ vercelRegion }: ClientPageProps) {
     setHttpBenchmark(prev => prev ? { ...prev, isRunning: false } : null);
   }, []);
 
+  const [workerBenchmark, setWorkerBenchmark] = useState<HttpBenchmarkStats | null>(null);
+  const [workerLocation, setWorkerLocation] = useState<string | null>(null);
+  
+  const runWorkerBenchmark = useCallback(async () => {
+    setWorkerBenchmark({ results: [], min: 0, max: 0, avg: 0, isRunning: true });
+    const results: number[] = [];
+
+    // Connect to the Worker WebSocket
+    const ws = new WebSocket('wss://you-had-one-job-ws.lllencinas.workers.dev');
+    
+    await new Promise<void>((resolve) => {
+      ws.onopen = () => resolve();
+      ws.onerror = () => resolve();
+    });
+
+    if (ws.readyState !== WebSocket.OPEN) {
+      setWorkerBenchmark(prev => prev ? { ...prev, isRunning: false } : null);
+      return;
+    }
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.type === 'welcome' && data.serverLocation) {
+        setWorkerLocation(data.serverLocation);
+      }
+      if (data.type === 'pong' && data.timestamp) {
+        const now = Date.now();
+        const latency = now - data.timestamp;
+        results.push(latency);
+        
+        setWorkerBenchmark({
+          results: [...results],
+          min: Math.min(...results),
+          max: Math.max(...results),
+          avg: Math.round(results.reduce((a, b) => a + b, 0) / results.length),
+          isRunning: results.length < 10
+        });
+      }
+    };
+
+    // Send 10 pings with 100ms gaps
+    for (let i = 0; i < 10; i++) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const now = Date.now();
+      ws.send(JSON.stringify({ type: 'ping', timestamp: now }));
+    }
+
+    // Wait for responses
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    ws.close();
+    
+    setWorkerBenchmark(prev => prev ? { ...prev, isRunning: false } : null);
+  }, []);
+
   return (
     <div className="container">
       <main className="main">
@@ -154,6 +208,14 @@ export default function ClientPage({ vercelRegion }: ClientPageProps) {
               style={{ opacity: httpBenchmark?.isRunning ? 0.5 : 1, background: '#FFD700', color: '#000' }}
             >
               {httpBenchmark?.isRunning ? 'Running...' : 'HTTP API Benchmark'}
+            </button>
+            <button 
+              onClick={runWorkerBenchmark} 
+              className="button"
+              disabled={workerBenchmark?.isRunning}
+              style={{ opacity: workerBenchmark?.isRunning ? 0.5 : 1, background: '#FF6B6B', color: '#fff' }}
+            >
+              {workerBenchmark?.isRunning ? 'Running...' : 'Worker WS Benchmark'}
             </button>
           </div>
           
@@ -209,6 +271,33 @@ export default function ClientPage({ vercelRegion }: ClientPageProps) {
                 <div style={{ marginTop: '10px', fontSize: '0.8em', opacity: 0.6 }}>
                   All pings: [{httpBenchmark.results.map(r => r + 'ms').join(', ')}]
                 </div>
+              </div>
+            )}
+
+            {workerBenchmark && workerBenchmark.results.length > 0 && (
+              <div className="latency-box" style={{ marginTop: '15px', padding: '10px', background: 'rgba(255, 107, 107, 0.1)', borderRadius: '8px', border: '1px solid rgba(255, 107, 107, 0.3)' }}>
+                <p className="latency" style={{ marginBottom: '8px' }}>
+                  <strong>⚡ Worker WebSocket (no Durable Objects) ({workerBenchmark.results.length}/10)</strong>
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '0.9em' }}>
+                  <div>
+                    <span style={{ opacity: 0.7 }}>Min:</span> <span style={{ color: '#FF6B6B' }}>{workerBenchmark.min}ms</span>
+                  </div>
+                  <div>
+                    <span style={{ opacity: 0.7 }}>Avg:</span> <span style={{ color: '#FF6B6B' }}>{workerBenchmark.avg}ms</span>
+                  </div>
+                  <div>
+                    <span style={{ opacity: 0.7 }}>Max:</span> <span style={{ color: '#FF6B6B' }}>{workerBenchmark.max}ms</span>
+                  </div>
+                </div>
+                <div style={{ marginTop: '10px', fontSize: '0.8em', opacity: 0.6 }}>
+                  All pings: [{workerBenchmark.results.map(r => r + 'ms').join(', ')}]
+                </div>
+                {workerLocation && (
+                  <div style={{ marginTop: '5px', fontSize: '0.8em', opacity: 0.7 }}>
+                    Worker Location: {workerLocation}
+                  </div>
+                )}
               </div>
             )}
 
