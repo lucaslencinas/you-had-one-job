@@ -3,12 +3,31 @@
 import Link from 'next/link';
 import { CreateRoomButton } from "../components/lobby/CreateRoomButton";
 import { JoinRoomForm } from "../components/lobby/JoinRoomForm";
+import { useEffect, useState } from 'react';
+import { generateUsername } from '../utils/username-generator';
 
 interface ClientPageProps {
   vercelRegion: string;
 }
 
 export default function ClientPage({ vercelRegion }: ClientPageProps) {
+  const [username, setUsername] = useState('');
+
+  useEffect(() => {
+    let stored = localStorage.getItem('tetris-username');
+    if (!stored) {
+        stored = generateUsername();
+        localStorage.setItem('tetris-username', stored);
+    }
+    setUsername(stored);
+  }, []);
+
+  const handleUsernameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newVal = e.target.value;
+    setUsername(newVal);
+    localStorage.setItem('tetris-username', newVal);
+  };
+
   return (
     <div className="container">
       <main className="main" style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center' }}>
@@ -17,8 +36,31 @@ export default function ClientPage({ vercelRegion }: ClientPageProps) {
           The chaotic co-op Tetris experience.
         </p>
         
-        <div style={{ padding: '60px', background: 'rgba(255,255,255,0.05)', borderRadius: '24px', marginBottom: '50px', border: '1px solid rgba(255,255,255,0.1)' }}>
+        <div style={{ padding: '40px 60px', background: 'rgba(255,255,255,0.05)', borderRadius: '24px', marginBottom: '50px', border: '1px solid rgba(255,255,255,0.1)' }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '30px' }}>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', alignItems: 'center', width: '100%', maxWidth: '300px' }}>
+                <label style={{ fontSize: '0.9rem', opacity: 0.7, textTransform: 'uppercase', letterSpacing: '1px' }}>Your Nickname</label>
+                <input 
+                    type="text" 
+                    value={username}
+                    onChange={handleUsernameChange}
+                    placeholder="Enter nickname..."
+                    style={{
+                        padding: '12px 20px',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(255,255,255,0.2)',
+                        background: 'rgba(0,0,0,0.3)',
+                        color: '#fff',
+                        fontSize: '1.1rem',
+                        textAlign: 'center',
+                        width: '100%'
+                    }}
+                />
+            </div>
+
+            <div style={{ width: '100%', height: '1px', background: 'rgba(255,255,255,0.1)', margin: '0' }}></div>
+
             <CreateRoomButton />
             <div style={{ width: '100%', height: '1px', background: 'rgba(255,255,255,0.1)', margin: '10px 0' }}></div>
             <JoinRoomForm />

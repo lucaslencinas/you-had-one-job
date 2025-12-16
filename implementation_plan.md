@@ -1,18 +1,18 @@
 # implementation_plan.md
 
 ## Phase 1: Room & Connection Management (Milestone 1)
-- [ ] **UI: Lobby & Create Room**
-    - [ ] Create `CreateRoomButton` component calling `/api/rooms/create`.
-    - [ ] Create `JoinRoomForm` component to input Room ID.
-    - [ ] Handle redirect to `/room/[roomId]`.
-- [ ] **UI: Waiting Room**
-    - [ ] Create `RoomPage` (client-side) connecting to `wss://.../game/[roomId]`.
-    - [ ] Implement `join` message handling in `GameRoom` DO (`src/game-room.ts`).
-    - [ ] Broadcast player list update from DO to all clients.
-    - [ ] Show connected players list in UI.
-- [ ] **Team Selection**
-    - [ ] Add "Join Team A" / "Join Team B" logic in UI & Backend.
-    - [ ] Enforce team limits (optional but good).
+- [x] **UI: Lobby & Create Room**
+    - [x] Create `CreateRoomButton` component calling `/api/rooms/create`.
+    - [x] Create `JoinRoomForm` component to input Room ID.
+    - [x] Handle redirect to `/room/[roomId]`.
+- [x] **UI: Waiting Room**
+    - [x] Create `RoomPage` (client-side) connecting to `wss://.../game/[roomId]`.
+    - [x] Implement `join` message handling in `GameRoom` DO (`src/game-room.ts`).
+    - [x] Broadcast player list update from DO to all clients.
+    - [x] Show connected players list in UI.
+- [x] **Team Selection**
+    - [x] Add "Join Team A" / "Join Team B" logic in UI & Backend.
+    - [x] Enforce team limits (optional but good).
 
 ## Phase 2: Single Player Tetris Core (Milestone 2 & 3)
 - [x] **Tetris Logic (Pure Function)**

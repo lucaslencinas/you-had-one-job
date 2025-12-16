@@ -6,9 +6,11 @@ export interface GameState {
 
 export interface PlayerState {
   id: string;
+  username: string;
+  team?: 'A' | 'B';
+  isReady: boolean;
   x: number;
   y: number;
-  // Add other player props here
 }
 
 export interface GameAction {

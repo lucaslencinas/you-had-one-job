@@ -1,9 +1,9 @@
 import { DurableObject } from 'cloudflare:workers';
-import { GameState, GameAction } from './interfaces';
+import { GameState, GameAction, PlayerState } from './interfaces';
 
 export class GameRoom extends DurableObject {
   private state: GameState;
-  private sessions: WebSocket[] = [];
+  private sessions: Map<WebSocket, string> = new Map(); // ws -> playerId
 
   constructor(ctx: any, env: any) {
     super(ctx, env);
@@ -33,14 +33,12 @@ export class GameRoom extends DurableObject {
   }
 
   private handleSession(ws: WebSocket) {
-    this.sessions.push(ws);
     ws.accept();
 
     ws.addEventListener('message', async (event) => {
       try {
         const data = JSON.parse(event.data as string);
         
-        // PING Handler (for latency testing this specific game architecture)
         if (data.type === 'ping') {
             ws.send(JSON.stringify({
                 type: 'pong',
@@ -51,9 +49,29 @@ export class GameRoom extends DurableObject {
             return;
         }
 
+        // Handle Connect/Join
+        if (data.type === 'join') {
+            const playerId = data.payload?.id || crypto.randomUUID();
+            const username = data.payload?.username || `Player ${playerId.substr(0, 4)}`;
+            
+            this.sessions.set(ws, playerId);
+            
+            this.state.players[playerId] = {
+                id: playerId,
+                username,
+                isReady: false,
+                x: 0, 
+                y: 0 
+            };
+            
+            this.broadcastState();
+            return;
+        }
+
         // Game Actions
-        if (data.type) {
-            this.handleAction(ws, data);
+        const playerId = this.sessions.get(ws);
+        if (playerId) {
+            this.handleAction(playerId, data);
         }
 
       } catch (e) {
@@ -62,38 +80,47 @@ export class GameRoom extends DurableObject {
     });
 
     ws.addEventListener('close', () => {
-      this.sessions = this.sessions.filter(s => s !== ws);
+      const playerId = this.sessions.get(ws);
+      if (playerId) {
+          delete this.state.players[playerId];
+          this.sessions.delete(ws);
+          this.broadcastState();
+      }
     });
   }
 
-  private handleAction(sender: WebSocket, action: any) {
-    // This is where your GAME LOGIC goes
-    // Since it's a Durable Object, this is single-threaded and safe!
-    
-    if (action.type === 'move') {
-        const playerId = action.payload.playerId;
-        if (this.state.players[playerId]) {
-            // Update state
-            this.state.players[playerId].x += action.payload.dx;
-            this.state.players[playerId].y += action.payload.dy;
-        }
-        
-        // Broadcast new state
-        this.broadcast({
-            type: 'state-update',
-            state: this.state
-        });
+  private handleAction(playerId: string, action: any) {
+    const player = this.state.players[playerId];
+    if (!player) return;
+
+    switch (action.type) {
+        case 'set-team':
+            player.team = action.payload.team; // 'A' or 'B'
+            this.broadcastState();
+            break;
+            
+        case 'move':
+            if (this.state.status === 'playing') {
+                player.x += action.payload.dx;
+                player.y += action.payload.dy;
+                this.broadcastState();
+            }
+            break;
     }
   }
 
-  private broadcast(message: any) {
-    const msg = JSON.stringify(message);
-    this.sessions.forEach(ws => {
+  private broadcastState() {
+    const msg = JSON.stringify({
+        type: 'state-update',
+        state: this.state
+    });
+    
+    for (const ws of this.sessions.keys()) {
         try {
             ws.send(msg);
         } catch (e) {
-            // socket likely dead
+            this.sessions.delete(ws);
         }
-    });
+    }
   }
 }
