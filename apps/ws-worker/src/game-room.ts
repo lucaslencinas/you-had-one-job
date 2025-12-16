@@ -68,7 +68,8 @@ export class GameRoom extends DurableObject {
             ws.send(JSON.stringify({
                 type: 'welcome',
                 id: playerId,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                message: "Welcome to You Had One Job!"
             }));
 
             this.broadcastState();
