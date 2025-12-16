@@ -8,7 +8,11 @@ interface ClientPageProps {
 }
 
 export default function ClientPage({ vercelRegion }: ClientPageProps) {
-  const [latency, setLatency] = useState<number | null>(null);
+  const [latencyStats, setLatencyStats] = useState<{
+    total: number;
+    processing: number;
+    network: number;
+  } | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [lastPing, setLastPing] = useState<number | null>(null);
   const [serverLocation, setServerLocation] = useState<string | null>(null);
@@ -20,7 +24,14 @@ export default function ClientPage({ vercelRegion }: ClientPageProps) {
       const data = JSON.parse(event.data);
       if (data.type === "pong" && data.timestamp) {
         const now = Date.now();
-        setLatency(now - data.timestamp);
+        const total = now - data.timestamp;
+        const processing = (data.serverSentAt || now) - (data.serverReceivedAt || now);
+        
+        setLatencyStats({
+          total,
+          processing,
+          network: total - processing
+        });
       }
       if (data.type === "welcome" && data.serverLocation) {
         setServerLocation(data.serverLocation);
@@ -48,10 +59,14 @@ export default function ClientPage({ vercelRegion }: ClientPageProps) {
           </button>
           
           <div className="stats">
-             {latency !== null && (
-              <p className="latency">
-                Latency: <span className="latency-value">{latency}ms</span>
-              </p>
+             {latencyStats !== null && (
+              <div className="latency-box">
+                <p className="latency">Total Latency: <span className="latency-value">{latencyStats.total}ms</span></p>
+                <div className="latency-details" style={{ fontSize: '0.8em', opacity: 0.8, marginLeft: '10px' }}>
+                  <p>Network (RTT): {latencyStats.network}ms</p>
+                  <p>Server Processing: {latencyStats.processing}ms</p>
+                </div>
+              </div>
             )}
             {serverLocation && (
               <p className="latency">

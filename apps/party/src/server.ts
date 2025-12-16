@@ -26,7 +26,13 @@ export default class Server implements Party.Server {
     const data = JSON.parse(message);
 
     if (data.type === "ping") {
-      sender.send(JSON.stringify({ type: "pong", timestamp: data.timestamp }));
+      const receivedAt = Date.now();
+      sender.send(JSON.stringify({ 
+        type: "pong", 
+        timestamp: data.timestamp,
+        serverReceivedAt: receivedAt,
+        serverSentAt: Date.now()
+      }));
       return;
     }
 
