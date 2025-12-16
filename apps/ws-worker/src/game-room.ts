@@ -52,7 +52,7 @@ export class GameRoom extends DurableObject {
         // Handle Connect/Join
         if (data.type === 'join') {
             const playerId = data.payload?.id || crypto.randomUUID();
-            const username = data.payload?.username || `Player ${playerId.substr(0, 4)}`;
+            const username = data.payload?.username || `Player ${playerId.slice(0, 4)}`;
             
             this.sessions.set(ws, playerId);
             
@@ -64,6 +64,13 @@ export class GameRoom extends DurableObject {
                 y: 0 
             };
             
+            // Send Welcome
+            ws.send(JSON.stringify({
+                type: 'welcome',
+                id: playerId,
+                timestamp: Date.now()
+            }));
+
             this.broadcastState();
             return;
         }

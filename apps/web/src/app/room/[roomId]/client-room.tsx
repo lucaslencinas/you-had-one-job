@@ -63,15 +63,12 @@ export function ClientRoom({ roomId }: ClientRoomProps) {
             const latency = Date.now() - data.timestamp;
             setMessages(prev => [...prev, `Pong: ${latency}ms`]);
         } 
+        else if (data.type === 'welcome') {
+            setMessages(prev => [...prev, `System: Joined as ${data.id}`]);
+            setMyId(data.id);
+        }
         else if (data.type === 'state-update') {
             setPlayers(data.state.players);
-            
-            // Try to find my ID based on username if not set (heuristic)
-            // Ideally server returns "welcome" with ID, but for now this works if usernames unique-ish
-            if (!myId) {
-                const me = Object.values(data.state.players as Record<string, Player>).find((p: Player) => p.username === username);
-                if (me) setMyId(me.id);
-            }
         }
         else {
             // console.log('Received:', data);
