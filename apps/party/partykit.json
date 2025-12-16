@@ -1,0 +1,4 @@
+{
+  "name": "you-had-one-job",
+  "main": "src/server.ts"
+}

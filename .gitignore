@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Environment Variables
+.env
+.env.*
+!.env.example
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# IDE / Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Build Outputs (General)
+dist/
+build/
+.next/
+
+# Agent / Workflows (Optional: keep workflows if you want them tracked, ignore others)
+#.agent/ 

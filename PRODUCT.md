@@ -30,7 +30,18 @@
 3. **Host** starts game.
 4. **Players** see their specific buttons. **Host** screen shows the Tetris boards.
 
-## 5. Future Roadmap
+## 5. Design & UX
+- **Visual Style**: "Chaotic Party" - High contrast, vibrant, neon.
+- **Palette**: 
+  - Background: Dark (`#0B0C10`, `#1F2833`)
+  - Accents: Neon Cyan (`#66FCF1`), Muted Teal (`#45A29E`), Light Grey (`#C5C6C7`).
+- **Typography**: Chunky, rounded sans-serif (e.g., *Fredoka One*, *Outfit*) for headers.
+- **Disconnection UX**:
+  - **Pause**: Immediate game freeze.
+  - **Feedback**: "Player Disconnected" overlay.
+  - **Recovery**: 120s timeout. Reconnect triggers 3s countdown.
+
+## 6. Future Roadmap
 - **New Games**: Snake (one controls direction, one controls speed?), Asteroids, Pong.
 - **Lobby Browser**: Public game listings.
 - **Accounts**: XP, cosmetics, history (Auth via Google/Email).

@@ -1,0 +1,70 @@
+:root {
+  --background: #0B0C10;
+  --foreground: #C5C6C7;
+  --accent-cyan: #66FCF1;
+  --accent-teal: #45A29E;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+button {
+  cursor: pointer;
+  padding: 10px 20px;
+  background-color: var(--accent-cyan);
+  color: var(--background);
+  border: none;
+  border-radius: 5px;
+  font-size: 1rem;
+  font-weight: bold;
+  transition: opacity 0.2s;
+}
+
+button:hover {
+  opacity: 0.8;
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+.title {
+  font-size: 3rem;
+  font-weight: bold;
+  color: var(--accent-teal);
+  text-align: center;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.latency {
+  font-size: 1.2rem;
+}
+
+.latency-value {
+  font-family: monospace;
+  font-weight: bold;
+  color: var(--accent-cyan);
+}
