@@ -1,9 +1,20 @@
 import { Redis } from '@upstash/redis/cloudflare';
+import { DurableObject } from 'cloudflare:workers';
 
 type Env = {
   UPSTASH_REDIS_REST_URL: string;
   UPSTASH_REDIS_REST_TOKEN: string;
+  BENCHMARK_KV: KVNamespace;
+  BENCHMARK_DB: D1Database;
+  BENCHMARK_DO: DurableObjectNamespace;
 };
+
+// Durable Object for Benchmarking
+export class BenchmarkDO extends DurableObject {
+  async fetch(request: Request) {
+    return new Response("pong");
+  }
+}
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
@@ -25,14 +36,15 @@ export default {
 
     server.send(JSON.stringify({
       type: 'welcome',
-      message: 'Connected to Worker + Redis Game Server'
+      message: 'Connected to Worker (Redis + KV + D1 + DO)',
     }));
 
     server.addEventListener('message', async (event: MessageEvent) => {
       try {
         const data = JSON.parse(event.data as string);
+        const start = Date.now();
         
-        // PING (Latency Test)
+        // 1. Standard Ping (Worker Only)
         if (data.type === 'ping') {
           server.send(JSON.stringify({
             type: 'pong',
@@ -43,34 +55,64 @@ export default {
           return;
         }
 
-        // JOIN ROOM
-        if (data.type === 'join-room' && data.roomId && data.playerId) {
-          const roomKey = `room:${data.roomId}`;
+        // 2. KV Benchmark
+        if (data.type === 'ping-kv') {
+          const key = `ping:${data.timestamp}`;
+          // Write
+          await env.BENCHMARK_KV.put(key, 'pong');
+          // Read
+          await env.BENCHMARK_KV.get(key);
           
-          // Add player to room set
-          await redis.sadd(`${roomKey}:players`, data.playerId);
-          await redis.expire(`${roomKey}:players`, 3600); // 1 hour TTL
-
-          // Get current players
-          const players = await redis.smembers(`${roomKey}:players`);
-          
-          // Broadcast to THIS client (in a real app, we'd broadcast to all via PubSub)
           server.send(JSON.stringify({
-            type: 'room-state',
-            roomId: data.roomId,
-            players: players
+            type: 'pong-kv',
+            timestamp: data.timestamp,
+            serverProcessingTime: Date.now() - start
           }));
         }
 
-        // GAME ACTION (Example)
-        if (data.type === 'action' && data.roomId) {
-          // Process game logic here...
-          // For now just echo back confirmed
+        // 3. D1 Benchmark
+        if (data.type === 'ping-d1') {
+          // Write
+          await env.BENCHMARK_DB.prepare(
+            "INSERT INTO pings (timestamp) VALUES (?)"
+          ).bind(data.timestamp).run();
+          
+          // Read (simple select 1)
+          await env.BENCHMARK_DB.prepare("SELECT 1").first();
+          
           server.send(JSON.stringify({
-            type: 'action-confirmed',
-            action: data.action,
-            timestamp: Date.now()
+            type: 'pong-d1',
+            timestamp: data.timestamp,
+            serverProcessingTime: Date.now() - start
           }));
+        }
+
+        // 4. Durable Object Benchmark
+        if (data.type === 'ping-do') {
+          // Generate a stable ID for testing (e.g., "benchmark-shard-1")
+          const id = env.BENCHMARK_DO.idFromName('benchmark-shard-1');
+          const stub = env.BENCHMARK_DO.get(id);
+          
+          await stub.fetch("http://do/ping");
+          
+          server.send(JSON.stringify({
+            type: 'pong-do',
+            timestamp: data.timestamp,
+            serverProcessingTime: Date.now() - start
+          }));
+        }
+
+        // 5. Upstash Redis Benchmark
+        if (data.type === 'ping-redis') {
+           const key = `ping:${data.timestamp}`;
+           await redis.set(key, 'pong');
+           await redis.get(key);
+           
+           server.send(JSON.stringify({
+             type: 'pong-redis',
+             timestamp: data.timestamp,
+             serverProcessingTime: Date.now() - start
+           }));
         }
 
       } catch (e) {
@@ -79,7 +121,7 @@ export default {
     });
 
     server.addEventListener('close', () => {
-      // Cleanup logic could go here
+      // Cleanup
     });
 
     return new Response(null, {

@@ -1,15 +1,9 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useCallback } from "react";
 
 interface ClientPageProps {
   vercelRegion: string;
-}
-
-interface LatencyResult {
-  total: number;
-  processing: number;
-  network: number;
 }
 
 interface HttpBenchmarkStats {
@@ -22,13 +16,18 @@ interface HttpBenchmarkStats {
 
 export default function ClientPage({ vercelRegion }: ClientPageProps) {
   const [httpBenchmark, setHttpBenchmark] = useState<HttpBenchmarkStats | null>(null);
+  const [wsBenchmark, setWsBenchmark] = useState<HttpBenchmarkStats | null>(null);
+  const [kvBenchmark, setKvBenchmark] = useState<HttpBenchmarkStats | null>(null);
+  const [d1Benchmark, setD1Benchmark] = useState<HttpBenchmarkStats | null>(null);
+  const [doBenchmark, setDoBenchmark] = useState<HttpBenchmarkStats | null>(null);
+  const [redisBenchmark, setRedisBenchmark] = useState<HttpBenchmarkStats | null>(null);
+  const [serverLocation, setServerLocation] = useState<string | null>(null);
   
   const runHttpBenchmark = useCallback(async () => {
     setHttpBenchmark({ results: [], min: 0, max: 0, avg: 0, isRunning: true });
     const results: number[] = [];
 
-    // Send 10 HTTP requests with 100ms gaps
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 5; i++) {
       await new Promise(resolve => setTimeout(resolve, 100));
       const start = Date.now();
       try {
@@ -51,147 +50,174 @@ export default function ClientPage({ vercelRegion }: ClientPageProps) {
     setHttpBenchmark(prev => prev ? { ...prev, isRunning: false } : null);
   }, []);
 
-  const [workerBenchmark, setWorkerBenchmark] = useState<HttpBenchmarkStats | null>(null);
-  const [workerLocation, setWorkerLocation] = useState<string | null>(null);
-  
-  const runWorkerBenchmark = useCallback(async () => {
-    setWorkerBenchmark({ results: [], min: 0, max: 0, avg: 0, isRunning: true });
+  const runWebSocketBenchmarks = useCallback(async (type: 'ping' | 'ping-kv' | 'ping-d1' | 'ping-do' | 'ping-redis', setStats: React.Dispatch<React.SetStateAction<HttpBenchmarkStats | null>>) => {
+    setStats({ results: [], min: 0, max: 0, avg: 0, isRunning: true });
     const results: number[] = [];
 
-    // Connect to the Worker WebSocket
     const ws = new WebSocket('wss://you-had-one-job-ws.lllencinas.workers.dev');
     
     await new Promise<void>((resolve) => {
       ws.onopen = () => resolve();
-      ws.onerror = () => resolve();
-      // Handle connection errors
       ws.onerror = (e) => {
         console.error("WebSocket error:", e);
-        resolve(); // Continue even on error to avoid hanging
+        resolve();
       }
     });
 
     if (ws.readyState !== WebSocket.OPEN) {
       console.error("WebSocket failed to connect");
-      setWorkerBenchmark(prev => prev ? { ...prev, isRunning: false } : null);
+      setStats(prev => prev ? { ...prev, isRunning: false } : null);
       return;
     }
 
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'welcome' && data.serverLocation) {
-        // Only set location, don't interfere with ping
+        setServerLocation(data.serverLocation);
       }
-      if (data.type === 'pong' && data.timestamp) {
+      
+      const isResponse = 
+        (type === 'ping' && data.type === 'pong') ||
+        (type === 'ping-kv' && data.type === 'pong-kv') ||
+        (type === 'ping-d1' && data.type === 'pong-d1') ||
+        (type === 'ping-do' && data.type === 'pong-do') ||
+        (type === 'ping-redis' && data.type === 'pong-redis');
+
+      if (isResponse && data.timestamp) {
         const now = Date.now();
+        // Use full RTT (client sent -> client received)
         const latency = now - data.timestamp;
         results.push(latency);
         
-        setWorkerBenchmark({
+        setStats({
           results: [...results],
           min: Math.min(...results),
           max: Math.max(...results),
           avg: Math.round(results.reduce((a, b) => a + b, 0) / results.length),
-          isRunning: results.length < 10
+          isRunning: results.length < 5
         });
       }
     };
 
-    // Send 10 pings with 100ms gaps
-    for (let i = 0; i < 10; i++) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+    // Send 5 pings with 200ms gaps
+    for (let i = 0; i < 5; i++) {
+      await new Promise(resolve => setTimeout(resolve, 200));
       const now = Date.now();
-      ws.send(JSON.stringify({ type: 'ping', timestamp: now }));
+      ws.send(JSON.stringify({ type, timestamp: now }));
     }
 
-    // Wait for responses
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    await new Promise(resolve => setTimeout(resolve, 1000));
     ws.close();
-    
-    setWorkerBenchmark(prev => prev ? { ...prev, isRunning: false } : null);
+    setStats(prev => prev ? { ...prev, isRunning: false } : null);
   }, []);
 
   return (
     <div className="container">
       <main className="main">
-        <h1 className="title">You Had One Job</h1>
+        <h1 className="title">Cloudflare Performance Lab</h1>
+        <p style={{ textAlign: 'center', marginBottom: '30px', opacity: 0.8 }}>
+          Comparing Database & Compute Latency from your location
+        </p>
         
         <div className="controls">
-          <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '30px', width: '100%' }}>
             <button 
               onClick={runHttpBenchmark} 
               className="button"
               disabled={httpBenchmark?.isRunning}
-              style={{ opacity: httpBenchmark?.isRunning ? 0.5 : 1, background: '#FFD700', color: '#000' }}
+              style={{ background: '#FFD700', color: '#000', opacity: httpBenchmark?.isRunning ? 0.5 : 1 }}
             >
-              {httpBenchmark?.isRunning ? 'Running...' : 'Test HTTP API Latency'}
+              {httpBenchmark?.isRunning ? 'Running...' : 'HTTP API (Stateless)'}
             </button>
             <button 
-              onClick={runWorkerBenchmark} 
+              onClick={() => runWebSocketBenchmarks('ping', setWsBenchmark)} 
               className="button"
-              disabled={workerBenchmark?.isRunning}
-              style={{ opacity: workerBenchmark?.isRunning ? 0.5 : 1, background: '#66FCF1', color: '#000' }}
+              disabled={wsBenchmark?.isRunning}
+              style={{ background: '#66FCF1', color: '#000', opacity: wsBenchmark?.isRunning ? 0.5 : 1 }}
             >
-              {workerBenchmark?.isRunning ? 'Running...' : 'Test Game Server Latency'}
+              {wsBenchmark?.isRunning ? 'Running...' : 'Raw WebSocket (Stateless)'}
+            </button>
+            <button 
+              onClick={() => runWebSocketBenchmarks('ping-redis', setRedisBenchmark)} 
+              className="button"
+              disabled={redisBenchmark?.isRunning}
+              style={{ background: '#FF6B6B', color: '#fff', opacity: redisBenchmark?.isRunning ? 0.5 : 1 }}
+            >
+              {redisBenchmark?.isRunning ? 'Running...' : 'Upstash Redis (EU)'}
+            </button>
+            <button 
+              onClick={() => runWebSocketBenchmarks('ping-kv', setKvBenchmark)} 
+              className="button"
+              disabled={kvBenchmark?.isRunning}
+              style={{ background: '#FFA500', color: '#fff', opacity: kvBenchmark?.isRunning ? 0.5 : 1 }}
+            >
+              {kvBenchmark?.isRunning ? 'Running...' : 'Cloudflare KV (Global)'}
+            </button>
+            <button 
+              onClick={() => runWebSocketBenchmarks('ping-d1', setD1Benchmark)} 
+              className="button"
+              disabled={d1Benchmark?.isRunning}
+              style={{ background: '#4CAF50', color: '#fff', opacity: d1Benchmark?.isRunning ? 0.5 : 1 }}
+            >
+              {d1Benchmark?.isRunning ? 'Running...' : 'Cloudflare D1 (SQLite)'}
+            </button>
+            <button 
+              onClick={() => runWebSocketBenchmarks('ping-do', setDoBenchmark)} 
+              className="button"
+              disabled={doBenchmark?.isRunning}
+              style={{ background: '#9C27B0', color: '#fff', opacity: doBenchmark?.isRunning ? 0.5 : 1 }}
+            >
+              {doBenchmark?.isRunning ? 'Running...' : 'Durable Object'}
             </button>
           </div>
           
-          <div className="stats">
-            {httpBenchmark && httpBenchmark.results.length > 0 && (
-              <div className="latency-box" style={{ marginTop: '15px', padding: '10px', background: 'rgba(255, 215, 0, 0.1)', borderRadius: '8px', border: '1px solid rgba(255, 215, 0, 0.3)' }}>
-                <p className="latency" style={{ marginBottom: '8px' }}>
-                  <strong>🌐 HTTP API / Cloudflare Edge ({httpBenchmark.results.length}/10)</strong>
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '0.9em' }}>
-                  <div>
-                    <span style={{ opacity: 0.7 }}>Min:</span> <span style={{ color: '#FFD700' }}>{httpBenchmark.min}ms</span>
-                  </div>
-                  <div>
-                    <span style={{ opacity: 0.7 }}>Avg:</span> <span style={{ color: '#FFD700' }}>{httpBenchmark.avg}ms</span>
-                  </div>
-                  <div>
-                    <span style={{ opacity: 0.7 }}>Max:</span> <span style={{ color: '#FFD700' }}>{httpBenchmark.max}ms</span>
-                  </div>
-                </div>
-                <div style={{ marginTop: '10px', fontSize: '0.8em', opacity: 0.6 }}>
-                  All pings: [{httpBenchmark.results.map(r => r + 'ms').join(', ')}]
-                </div>
-              </div>
-            )}
+          <div className="stats" style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '15px' }}>
+            {renderStats("🌐 HTTP API (Stateless)", httpBenchmark, "#FFD700", "#000")}
+            {renderStats("🔌 Raw WebSocket (Stateless)", wsBenchmark, "#66FCF1", "#000")}
+            {renderStats("🚀 Upstash Redis (EU)", redisBenchmark, "#FF6B6B", "#fff")}
+            {renderStats("🌍 Cloudflare KV (Global)", kvBenchmark, "#FFA500", "#fff")}
+            {renderStats("💾 Cloudflare D1 (SQLite)", d1Benchmark, "#4CAF50", "#fff")}
+            {renderStats("📦 Durable Object (Compute)", doBenchmark, "#9C27B0", "#fff")}
 
-            {workerBenchmark && workerBenchmark.results.length > 0 && (
-              <div className="latency-box" style={{ marginTop: '15px', padding: '10px', background: 'rgba(102, 252, 241, 0.1)', borderRadius: '8px', border: '1px solid rgba(102, 252, 241, 0.3)' }}>
-                <p className="latency" style={{ marginBottom: '8px' }}>
-                  <strong>⚡ Game Server / WebSockets ({workerBenchmark.results.length}/10)</strong>
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '0.9em' }}>
-                  <div>
-                    <span style={{ opacity: 0.7 }}>Min:</span> <span className="latency-value">{workerBenchmark.min}ms</span>
-                  </div>
-                  <div>
-                    <span style={{ opacity: 0.7 }}>Avg:</span> <span className="latency-value">{workerBenchmark.avg}ms</span>
-                  </div>
-                  <div>
-                    <span style={{ opacity: 0.7 }}>Max:</span> <span className="latency-value">{workerBenchmark.max}ms</span>
-                  </div>
-                </div>
-                <div style={{ marginTop: '10px', fontSize: '0.8em', opacity: 0.6 }}>
-                  All pings: [{workerBenchmark.results.map(r => r + 'ms').join(', ')}]
-                </div>
-                {workerLocation && (
-                  <div style={{ marginTop: '5px', fontSize: '0.8em', opacity: 0.7 }}>
-                    Server Location: {workerLocation}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <p className="latency" style={{ marginTop: '20px' }}>
-              Your Region (detected): <span className="latency-value">{vercelRegion}</span>
-            </p>
+            <div style={{ marginTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '20px', fontSize: '0.9em', opacity: 0.7 }}>
+              {serverLocation && <p>Worker Location: <span style={{ color: '#66FCF1' }}>{serverLocation}</span></p>}
+              <p>Your Region: <span style={{ color: '#FFD700' }}>{vercelRegion}</span></p>
+            </div>
           </div>
         </div>
       </main>
     </div>
   );
+}
+
+function renderStats(label: string, stats: HttpBenchmarkStats | null, bgColor: string, textColor: string) {
+  if (!stats || stats.results.length === 0) return null;
+  return (
+    <div className="latency-box" style={{ padding: '15px', background: `rgba(${hexToRgb(bgColor)}, 0.1)`, borderRadius: '12px', border: `1px solid ${bgColor}` }}>
+      <p className="latency" style={{ marginBottom: '10px', color: bgColor, fontWeight: 'bold' }}>
+        {label}
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '1.1em' }}>
+        <div>
+          <span style={{ opacity: 0.7 }}>Min:</span> <span style={{ color: '#fff' }}>{stats.min}ms</span>
+        </div>
+        <div>
+          <span style={{ opacity: 0.7 }}>Avg:</span> <span style={{ color: '#fff', fontWeight: 'bold' }}>{stats.avg}ms</span>
+        </div>
+        <div>
+          <span style={{ opacity: 0.7 }}>Max:</span> <span style={{ color: '#fff' }}>{stats.max}ms</span>
+        </div>
+      </div>
+      <div style={{ marginTop: '10px', fontSize: '0.8em', opacity: 0.5, fontFamily: 'monospace' }}>
+        [{stats.results.map(r => r + 'ms').join(', ')}]
+      </div>
+    </div>
+  );
+}
+
+function hexToRgb(hex: string) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result ? 
+    `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` 
+    : '255, 255, 255';
 }

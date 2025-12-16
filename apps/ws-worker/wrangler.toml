@@ -4,3 +4,20 @@ compatibility_date = "2024-12-01"
 
 [placement]
 mode = "smart"
+
+[[kv_namespaces]]
+binding = "BENCHMARK_KV"
+id = "932dc793e1e446c18a27828079fcafe6"
+
+[[d1_databases]]
+binding = "BENCHMARK_DB"
+database_name = "BENCHMARK_DB"
+database_id = "58122b95-50f1-4e46-8a4d-0ee9372761ab"
+
+[[durable_objects.bindings]]
+name = "BENCHMARK_DO"
+class_name = "BenchmarkDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["BenchmarkDO"]
