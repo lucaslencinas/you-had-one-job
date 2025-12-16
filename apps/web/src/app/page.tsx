@@ -7,6 +7,7 @@ export default function Home() {
   const [latency, setLatency] = useState<number | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [lastPing, setLastPing] = useState<number | null>(null);
+  const [serverLocation, setServerLocation] = useState<string | null>(null);
 
   const socket = usePartySocket({
     host: process.env.NEXT_PUBLIC_PARTY_HOST || "localhost:1999",
@@ -16,6 +17,9 @@ export default function Home() {
       if (data.type === "pong" && data.timestamp) {
         const now = Date.now();
         setLatency(now - data.timestamp);
+      }
+      if (data.type === "welcome" && data.serverLocation) {
+        setServerLocation(data.serverLocation);
       }
     },
   });
@@ -39,9 +43,14 @@ export default function Home() {
             Send Ping
           </button>
           
-          {latency !== null && (
+        {latency !== null && (
             <p className="latency">
               Latency: <span className="latency-value">{latency}ms</span>
+            </p>
+          )}
+          {serverLocation && (
+            <p className="latency">
+              Server Location: <span className="latency-value">{serverLocation}</span>
             </p>
           )}
         </div>

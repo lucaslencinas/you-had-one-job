@@ -11,8 +11,15 @@ export default class Server implements Party.Server {
   url: ${new URL(ctx.request.url).pathname}`
     );
 
-    // Send a welcome message
-    conn.send(JSON.stringify({ type: "welcome", message: "Welcome to the party!" }));
+    const location = ctx.request.cf?.colo || 'UNKNOWN';
+    const country = ctx.request.cf?.country || 'UNKNOWN';
+    
+    // Send a welcome message with location info
+    conn.send(JSON.stringify({ 
+      type: "welcome", 
+      message: "Welcome to the party!",
+      serverLocation: `${location}, ${country}`
+    }));
   }
 
   onMessage(message: string, sender: Party.Connection) {
