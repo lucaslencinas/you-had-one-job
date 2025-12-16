@@ -86,7 +86,7 @@ export function ClientRoom({ roomId }: ClientRoomProps) {
     return () => {
       ws.close();
     };
-  }, [roomId, username, myId]);
+  }, [roomId, username]);
 
   const leaveRoom = () => {
     router.push('/');
