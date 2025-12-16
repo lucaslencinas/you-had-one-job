@@ -25,13 +25,18 @@ export default function ClientPage({ vercelRegion }: ClientPageProps) {
           </div>
         </div>
 
-        <div style={{ marginTop: '50px', opacity: 0.5 }}>
-            <Link href="/benchmark" style={{ color: '#66FCF1', textDecoration: 'none', borderBottom: '1px dotted #66FCF1', fontSize: '0.9rem' }}>
-                View Performance Benchmarks
+        <div style={{ marginTop: '50px', display: 'flex', gap: '20px', justifyContent: 'center' }}>
+            <Link href="/tetris-solo" style={{ color: '#FFD700', textDecoration: 'none', borderBottom: '1px dotted #FFD700', fontSize: '1rem' }}>
+                Practice Solo Mode
             </Link>
-            <p style={{ marginTop: '10px', fontSize: '0.8rem' }}>
-                Server Region: {vercelRegion}
-            </p>
+            <span style={{ opacity: 0.3 }}>|</span>
+            <Link href="/benchmark" style={{ color: '#66FCF1', textDecoration: 'none', borderBottom: '1px dotted #66FCF1', fontSize: '1rem' }}>
+                View Performance Lab
+            </Link>
+        </div>
+        
+        <div style={{ marginTop: '20px', opacity: 0.5, fontSize: '0.8rem' }}>
+            <p>Server Region: {vercelRegion}</p>
         </div>
       </main>
     </div>
