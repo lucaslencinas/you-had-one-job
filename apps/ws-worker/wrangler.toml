@@ -18,6 +18,10 @@ database_id = "58122b95-50f1-4e46-8a4d-0ee9372761ab"
 name = "BENCHMARK_DO"
 class_name = "BenchmarkDO"
 
+[[durable_objects.bindings]]
+name = "GAME_ROOM"
+class_name = "GameRoom"
+
 [[migrations]]
-tag = "v1"
-new_sqlite_classes = ["BenchmarkDO"]
+tag = "v2"
+new_sqlite_classes = ["GameRoom"]
