@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import usePartySocket from "partysocket/react";
 
 interface ClientPageProps {
   vercelRegion: string;
@@ -13,14 +12,6 @@ interface LatencyResult {
   network: number;
 }
 
-interface BenchmarkStats {
-  results: LatencyResult[];
-  min: number;
-  max: number;
-  avg: number;
-  isRunning: boolean;
-}
-
 interface HttpBenchmarkStats {
   results: number[];
   min: number;
@@ -30,77 +21,8 @@ interface HttpBenchmarkStats {
 }
 
 export default function ClientPage({ vercelRegion }: ClientPageProps) {
-  const [latencyStats, setLatencyStats] = useState<LatencyResult | null>(null);
-  const [serverLocation, setServerLocation] = useState<string | null>(null);
-  const [benchmark, setBenchmark] = useState<BenchmarkStats | null>(null);
   const [httpBenchmark, setHttpBenchmark] = useState<HttpBenchmarkStats | null>(null);
   
-  const pendingPingsRef = useRef<Map<number, number>>(new Map());
-  const benchmarkResultsRef = useRef<number[]>([]);
-
-  const socket = usePartySocket({
-    host: process.env.NEXT_PUBLIC_PARTY_HOST || "localhost:1999",
-    room: "lobby",
-    onMessage(event) {
-      const data = JSON.parse(event.data);
-      if (data.type === "pong" && data.timestamp) {
-        const now = Date.now();
-        const total = now - data.timestamp;
-        const processing = (data.serverSentAt || now) - (data.serverReceivedAt || now);
-        
-        setLatencyStats({
-          total,
-          processing,
-          network: total - processing
-        });
-
-        // Check if this is part of a benchmark
-        if (pendingPingsRef.current.has(data.timestamp)) {
-          pendingPingsRef.current.delete(data.timestamp);
-          benchmarkResultsRef.current.push(total);
-          
-          // Update benchmark stats
-          const results = benchmarkResultsRef.current;
-          setBenchmark(prev => ({
-            results: results.map(t => ({ total: t, processing: 0, network: t })),
-            min: Math.min(...results),
-            max: Math.max(...results),
-            avg: Math.round(results.reduce((a, b) => a + b, 0) / results.length),
-            isRunning: prev?.isRunning ?? false
-          }));
-        }
-      }
-      if (data.type === "welcome" && data.serverLocation) {
-        setServerLocation(data.serverLocation);
-      }
-    },
-  });
-
-  const sendPing = () => {
-    const now = Date.now();
-    socket.send(JSON.stringify({ type: "ping", timestamp: now }));
-  };
-
-  const runBenchmark = useCallback(async () => {
-    // Reset
-    benchmarkResultsRef.current = [];
-    pendingPingsRef.current.clear();
-    setBenchmark({ results: [], min: 0, max: 0, avg: 0, isRunning: true });
-
-    // Send 10 pings with 100ms gaps
-    for (let i = 0; i < 10; i++) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      const now = Date.now();
-      pendingPingsRef.current.set(now, now);
-      socket.send(JSON.stringify({ type: "ping", timestamp: now }));
-    }
-
-    // Wait for all responses (max 3 seconds)
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    setBenchmark(prev => prev ? { ...prev, isRunning: false } : null);
-  }, [socket]);
-
   const runHttpBenchmark = useCallback(async () => {
     setHttpBenchmark({ results: [], min: 0, max: 0, avg: 0, isRunning: true });
     const results: number[] = [];
@@ -142,9 +64,15 @@ export default function ClientPage({ vercelRegion }: ClientPageProps) {
     await new Promise<void>((resolve) => {
       ws.onopen = () => resolve();
       ws.onerror = () => resolve();
+      // Handle connection errors
+      ws.onerror = (e) => {
+        console.error("WebSocket error:", e);
+        resolve(); // Continue even on error to avoid hanging
+      }
     });
 
     if (ws.readyState !== WebSocket.OPEN) {
+      console.error("WebSocket failed to connect");
       setWorkerBenchmark(prev => prev ? { ...prev, isRunning: false } : null);
       return;
     }
@@ -152,7 +80,7 @@ export default function ClientPage({ vercelRegion }: ClientPageProps) {
     ws.onmessage = (event) => {
       const data = JSON.parse(event.data);
       if (data.type === 'welcome' && data.serverLocation) {
-        setWorkerLocation(data.serverLocation);
+        // Only set location, don't interfere with ping
       }
       if (data.type === 'pong' && data.timestamp) {
         const now = Date.now();
@@ -190,72 +118,29 @@ export default function ClientPage({ vercelRegion }: ClientPageProps) {
         
         <div className="controls">
           <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
-            <button onClick={sendPing} className="button">
-              Single Ping
-            </button>
-            <button 
-              onClick={runBenchmark} 
-              className="button"
-              disabled={benchmark?.isRunning}
-              style={{ opacity: benchmark?.isRunning ? 0.5 : 1 }}
-            >
-              {benchmark?.isRunning ? 'Running...' : 'WebSocket Benchmark'}
-            </button>
             <button 
               onClick={runHttpBenchmark} 
               className="button"
               disabled={httpBenchmark?.isRunning}
               style={{ opacity: httpBenchmark?.isRunning ? 0.5 : 1, background: '#FFD700', color: '#000' }}
             >
-              {httpBenchmark?.isRunning ? 'Running...' : 'HTTP API Benchmark'}
+              {httpBenchmark?.isRunning ? 'Running...' : 'Test HTTP API Latency'}
             </button>
             <button 
               onClick={runWorkerBenchmark} 
               className="button"
               disabled={workerBenchmark?.isRunning}
-              style={{ opacity: workerBenchmark?.isRunning ? 0.5 : 1, background: '#FF6B6B', color: '#fff' }}
+              style={{ opacity: workerBenchmark?.isRunning ? 0.5 : 1, background: '#66FCF1', color: '#000' }}
             >
-              {workerBenchmark?.isRunning ? 'Running...' : 'Worker WS Benchmark'}
+              {workerBenchmark?.isRunning ? 'Running...' : 'Test Game Server Latency'}
             </button>
           </div>
           
           <div className="stats">
-            {latencyStats !== null && (
-              <div className="latency-box">
-                <p className="latency">Last Ping: <span className="latency-value">{latencyStats.total}ms</span></p>
-                <div className="latency-details" style={{ fontSize: '0.8em', opacity: 0.8, marginLeft: '10px' }}>
-                  <p>Network (RTT): {latencyStats.network}ms</p>
-                  <p>Server Processing: {latencyStats.processing}ms</p>
-                </div>
-              </div>
-            )}
-
-            {benchmark && benchmark.results.length > 0 && (
-              <div className="latency-box" style={{ marginTop: '15px', padding: '10px', background: 'rgba(102, 252, 241, 0.1)', borderRadius: '8px', border: '1px solid rgba(102, 252, 241, 0.3)' }}>
-                <p className="latency" style={{ marginBottom: '8px' }}>
-                  <strong>🔌 WebSocket/PartyKit ({benchmark.results.length}/10)</strong>
-                </p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '0.9em' }}>
-                  <div>
-                    <span style={{ opacity: 0.7 }}>Min:</span> <span className="latency-value">{benchmark.min}ms</span>
-                  </div>
-                  <div>
-                    <span style={{ opacity: 0.7 }}>Avg:</span> <span className="latency-value">{benchmark.avg}ms</span>
-                  </div>
-                  <div>
-                    <span style={{ opacity: 0.7 }}>Max:</span> <span className="latency-value">{benchmark.max}ms</span>
-                  </div>
-                </div>
-                <div style={{ marginTop: '10px', fontSize: '0.8em', opacity: 0.6 }}>
-                  All pings: [{benchmark.results.map(r => r.total + 'ms').join(', ')}]
-                </div>
-              </div>
-            )}
-
             {httpBenchmark && httpBenchmark.results.length > 0 && (
               <div className="latency-box" style={{ marginTop: '15px', padding: '10px', background: 'rgba(255, 215, 0, 0.1)', borderRadius: '8px', border: '1px solid rgba(255, 215, 0, 0.3)' }}>
                 <p className="latency" style={{ marginBottom: '8px' }}>
-                  <strong>🌐 HTTP API/Cloudflare Edge ({httpBenchmark.results.length}/10)</strong>
+                  <strong>🌐 HTTP API / Cloudflare Edge ({httpBenchmark.results.length}/10)</strong>
                 </p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '0.9em' }}>
                   <div>
@@ -275,19 +160,19 @@ export default function ClientPage({ vercelRegion }: ClientPageProps) {
             )}
 
             {workerBenchmark && workerBenchmark.results.length > 0 && (
-              <div className="latency-box" style={{ marginTop: '15px', padding: '10px', background: 'rgba(255, 107, 107, 0.1)', borderRadius: '8px', border: '1px solid rgba(255, 107, 107, 0.3)' }}>
+              <div className="latency-box" style={{ marginTop: '15px', padding: '10px', background: 'rgba(102, 252, 241, 0.1)', borderRadius: '8px', border: '1px solid rgba(102, 252, 241, 0.3)' }}>
                 <p className="latency" style={{ marginBottom: '8px' }}>
-                  <strong>⚡ Worker WebSocket (no Durable Objects) ({workerBenchmark.results.length}/10)</strong>
+                  <strong>⚡ Game Server / WebSockets ({workerBenchmark.results.length}/10)</strong>
                 </p>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', fontSize: '0.9em' }}>
                   <div>
-                    <span style={{ opacity: 0.7 }}>Min:</span> <span style={{ color: '#FF6B6B' }}>{workerBenchmark.min}ms</span>
+                    <span style={{ opacity: 0.7 }}>Min:</span> <span className="latency-value">{workerBenchmark.min}ms</span>
                   </div>
                   <div>
-                    <span style={{ opacity: 0.7 }}>Avg:</span> <span style={{ color: '#FF6B6B' }}>{workerBenchmark.avg}ms</span>
+                    <span style={{ opacity: 0.7 }}>Avg:</span> <span className="latency-value">{workerBenchmark.avg}ms</span>
                   </div>
                   <div>
-                    <span style={{ opacity: 0.7 }}>Max:</span> <span style={{ color: '#FF6B6B' }}>{workerBenchmark.max}ms</span>
+                    <span style={{ opacity: 0.7 }}>Max:</span> <span className="latency-value">{workerBenchmark.max}ms</span>
                   </div>
                 </div>
                 <div style={{ marginTop: '10px', fontSize: '0.8em', opacity: 0.6 }}>
@@ -295,19 +180,14 @@ export default function ClientPage({ vercelRegion }: ClientPageProps) {
                 </div>
                 {workerLocation && (
                   <div style={{ marginTop: '5px', fontSize: '0.8em', opacity: 0.7 }}>
-                    Worker Location: {workerLocation}
+                    Server Location: {workerLocation}
                   </div>
                 )}
               </div>
             )}
 
-            {serverLocation && (
-              <p className="latency" style={{ marginTop: '15px' }}>
-                PartyKit Server: <span className="latency-value">{serverLocation}</span>
-              </p>
-            )}
-            <p className="latency">
-              Cloudflare Region: <span className="latency-value">{vercelRegion}</span>
+            <p className="latency" style={{ marginTop: '20px' }}>
+              Your Region (detected): <span className="latency-value">{vercelRegion}</span>
             </p>
           </div>
         </div>
